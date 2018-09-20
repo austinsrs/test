@@ -1,0 +1,183 @@
+---
+title: "Lab 4: Distance"
+output: html_notebook
+---
+Austin Schenk 
+Lab4: Distance
+
+Problem 1: From our Canvas site, copy the code for distmatrix( ) into R.  Run the lines provided at the very bottom of the code working with the skull data and compare it to the output on pages 65 and 66.  Run the command two more times using Euclidean and Mahalanobis distances.  Put all three distance matrices into your lab report rounding to three significant figures.  (1a.) Provide a paragraph of commentary on the distances with respect to the data.  (2b.)  Carefully look at the provided R code.  Tell me what two commands are new to you.  Research these two new commands and in your own words explain to me what they do.
+
+
+```{r}
+distmatrix <- function(covariates,group,type="Mahalanobis")
+{
+  ########################################
+  ##Function to compute a matrix of distances between group means.
+  ##
+  ####Arguments
+  # covariates: data.frame consisting of n observations of p continuous variables
+  # group:  an n-vector "group" containing designations of the levels (at least 2) 
+  #         of the factor being tested.
+  # type:   c("Mahalanobis", "Penrose", "Euclidean")   
+  #
+  #### Details
+  #  Usually, "group" will be a column of the data.frame whose continuous variables are contained
+  #  in "covariates". Default distance is Mahalanobis.  Data are standardized for Euclidean distance. 
+  #  See section 5.3 of Manly's 3rd ed."Multivariate Statistical Methods"
+  #
+  #### Values
+  #  Returns a symmetric p-by-p matrix of the distances between each group.  The Mahalanobis distance
+  #  returned is actually the "squared" Mahalanobis (D^2) distance. 
+  #  D: matrix of distances
+  #  C: pooled covariance matrix
+  #  means: means for each variable within each group
+  ##########################################
+  
+  m <- nlevels(group)  #Determine the number of levels of the factor
+  size <- dim(as.matrix(covariates)) #Dimensions of data matrix
+  n <- size[1] #Number of observations
+  p <- size[2] #Number of variables
+  grpsize <- by(covariates,group,dim) #group sample sizes
+  if (type=="Euclidean") covariates <- scale(covariates)  # standardize the data (centered and scaled)
+  means <- aggregate(covariates,by=list(group), mean)  #group mean vectors
+  
+  covs <- by(covariates,group,cov) 
+  
+  C <- diag(0,p) #pxp matrix full of 0 entries
+  for (i in 1:m) C <- C+(grpsize[[i]][1]-1)*covs[[i]] #weighted sum of covariance matrices
+  C <- C/(n-m)  #Pooled covariance matrix (page 50, Manly)
+  
+  if (type == "Mahalanobis")  #Default is Mahalanobis distance--compute pooled C  
+    A <- solve(C)  #Inverse of C
+  
+  if (type == "Penrose")  #use 1/p * diagonal matrix of variances instead of Cinv
+    A <- (1/p)*diag(1/diag(C))
+  
+  if (type == "Euclidean")  #use I="identity matrix" instead of Cinv
+    A <- diag(1,p)
+  
+  
+  D <- matrix(0,m,m)  # m x m matrix full of 0 entries
+  meansdata <- data.matrix(means[,-1])
+  for (i in 2:m)
+  { 
+    for (j in 1:(i-1))  #fill in diagonal and lower diagonal of D
+    {
+      D[i,j] <- t(meansdata[i,]-meansdata[j,]) %*% A %*% ( meansdata[i,]-meansdata[j,] )
+    }
+  }
+  for (i in 1:(m-1))
+  {
+    for (j in (i+1):m)
+    {
+      D[i,j] <- D[j,i]  #Fill in upper triangle of symmetric matrix D
+    }
+  }
+  if (type=="Euclidean") D <- sqrt(D)
+  D <- as.data.frame(D)  
+  names(D) <- levels(group)   #attach names to columns
+  rownames(D) <- levels(group)  #attach names to rows
+  return(list(D=D,C=C,means=means))
+}
+
+skulls <- read.table(file=
+                       "http://users.humboldt.edu/rizzardi/Data.dir/skull.txt",
+                     header=T, skip=16)
+skull.penrose <- distmatrix(skulls[,1:4], as.factor(skulls[,5]), type="Penrose")
+skull.mahal <- distmatrix(skulls[,1:4], as.factor(skulls[,5]))
+skull.euclidean <- distmatrix(skulls[,1:4], as.factor(skulls[,5]), type="Euclidean")
+
+skull.penrose
+skull.mahal
+skull.euclidean
+
+?by
+
+```
+
+
+
+
+Problem 2: (2a.) Create a function that returns both the results of equation 5.5 and 5.6.  (Use the list( ) command as done in the distmatrix( ) function.) Input should be two vectors p1 and p2 which represent the proportions for each species and  each sum to 1. Comment your code.  (2b.) Show your data for three different scenarios: No overlap, complete overlap, and partial overlap.   
+
+```{r}
+dissimilarity <- function(p1,p2)
+{
+  Your code here
+  return( list(d1=d1, d2=d2) ) # returning list of both indices
+}
+```
+
+
+
+
+
+
+Problem 3: (3a.) Create a function that returns a list containing all four indices shown above (and on page 68).   The input should be four values: PP, AP, PA, AA which match with a, b, c, and d.  Comment your code. (3b.) Run your function for the three scenarios: (1) 0's for AP and PA, but non-zero values for PP and AA; (2) 0's for PP and AA, but non-zero values for PA and AP; (3) some blend between scenarios (1) and (2).
+```{r}
+#The following commands may help you:
+sp1 <- c(0,1,0,1,1,0,1,1,0,0,0,1)
+sp2 <- c(1,1,1,1,0,0,0,0,1,1,1,1)
+
+table(sp1,sp2)
+
+PresAbsIndex <- function(PP,PA,AP,AA)
+{
+ [ Your code goes here ]
+}
+```
+
+
+
+
+Problem 4: Install the package ade4 followed by data(butterfly) to get the butterfly dataset described on pages 7 and 8 of our text.   Our question is: "Is genetic similarity correlated with geographic distances between butterfly colonies?" Repeat the below code and fill in the genetic distance matrix using the distance measure we called d1 in problem 2.  (Don't worry about using percentages rather than proportions, the relative distances end up just being 0-100 instead of 0-1.)  Perform a Mantel Randomization test and interpret the results.  Repeat the test using the measure of distance d2.    Did it make a difference?   Start off with the below R code to  help you.  (Show your for-loop code as part of your answer as well as the scatter plots and randomization plots from the Mantel Randomization tests.)
+
+```{r}
+library(ade4)
+data(butterfly)
+names(butterfly)
+help(butterfly)
+help(pch)
+help(polygon)
+help(segments)
+
+plot(butterfly$contour[,1:2], pch=16, cex=.4) # set up x and y limits for graph
+#segments(x0=butterfly$contour[,1],y0=butterfly$contour[,2],
+#          x1=butterfly$contour[,3],y1=butterfly$contour[,4])
+
+polygon(butterfly$contour[,1:2], lty=2) # does same as segments()
+
+points(butterfly$xy, pch=7)
+
+nrow(butterfly$xy)
+text(butterfly$xy, labels=1:16, pos=2, cex=.8)
+apply(butterfly$genet,1,sum)  # confirming rows add to 100
+
+
+(Ddist <- dist(butterfly$xy))
+
+dissimilarity(butterfly$genet[1,],butterfly$genet[2,])$d2 # testing it out
+Dgenet <- matrix(NA,nrow=16,ncol=16)
+
+[Your code, consisting of two nested for-loops, to fill in Dgenet matrix . Use the function you created in problem 2.]
+
+Dgenet # to see what matrix now looks like
+Dgenet <- as.dist(Dgenet)
+plot(Ddist,Dgenet)
+cor(Ddist, Dgenet)
+
+(mantel.out <- mantel.rtest(Dgenet,Ddist, nrepet=10000))
+plot(mantel.out)
+```
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
